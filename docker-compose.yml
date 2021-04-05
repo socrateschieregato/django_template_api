@@ -1,0 +1,62 @@
+version: '2'
+services:
+    {{ project_name }}-postgres:
+        container_name: {{ project_name }}-postgres
+        image: postgres:9.6
+        restart: always
+        environment:
+            - POSTGRES_USER={{ project_name }}_dev
+            - POSTGRES_PASSWORD={{ project_name }}_dev
+            - POSTGRES_DB={{ project_name }}_dev
+        volumes:
+            - ./data/postgresql-data:/var/lib/postgresql/data
+        expose:
+            - 5432
+        ports:
+            - "5432:5432"
+    {{ project_name }}-memcached:
+        container_name: {{ project_name }}-memcached
+        image: memcached:1.4
+        restart: always
+        expose:
+            - 11211
+        ports:
+            - "11211:11211"
+    {{ project_name }}-rabbit:
+        container_name: {{ project_name }}-rabbit
+        image: rabbitmq:3.6-management
+        restart: always
+        environment:
+            - RABBITMQ_DEFAULT_USER=guest
+            - RABBITMQ_DEFAULT_PASS=guest
+            - RABBITMQ_DEFAULT_VHOST=/
+        volumes:
+            - ./data/rabbitmq-mnesia:/var/lib/rabbitmq/mnesia/
+        expose:
+            - 5672
+            - 15672
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+    {{ project_name }}-app:
+        build: .
+        command: sh -c "python django/manage.py migrate && python django/manage.py runserver 0.0.0.0:8000"
+        volumes:
+          - .:/django
+        ports:
+          - "8000:8000"
+        environment:
+          - ENV=production
+          - PORT=8080
+          - DATABASE_HOST={{ project_name }}-postgres
+          - "MEMCACHED_HOST=api_project-memcached:11211"
+          - RABBITMQ_USER=guest
+          - RABBITMQ_PASSWORD=guest
+          - RABBITMQ_HOST={{ project_name }}-rabbit
+          - RABBITMQ_VHOST=/
+          - DJANGO_SETTINGS_MODULE={{ project_name }}.settings.development
+          - SECRET_KEY="eo2ikx%gll3=%=axsfmm0i7ngydzt02e@luwkljm9yrs%)z#(1"
+        depends_on:
+          - api_project-postgres
+          - api_project-rabbit
+          - api_project-memcached
